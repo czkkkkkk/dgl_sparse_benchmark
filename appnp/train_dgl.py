@@ -2,15 +2,32 @@ import argparse
 import time
 
 import numpy as np
+import dgl.function as fn
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dgl.nn.pytorch.conv import APPNPConv
-from utils import load_dataset
+from utils import load_dataset, benchmark
 
 import dgl
 
 
+class APPNPConv(nn.Module):
+    def __init__(self, k, alpha, edge_drop=0.0):
+        super(APPNPConv, self).__init__()
+        self._k = k
+        self._alpha = alpha
+        self.edge_drop = nn.Dropout(edge_drop)
+
+    def forward(self, graph, feat, edge_weight):
+        with graph.local_scope():
+            feat_0 = feat
+            for _ in range(self._k):
+                graph.ndata["h"] = feat
+                graph.edata["w"] = self.edge_drop(edge_weight).to(feat.device)
+                graph.update_all(fn.u_mul_e("h", "w", "m"), fn.sum("m", "h"))
+                feat = graph.ndata.pop("h")
+                feat = (1 - self._alpha) * feat + self._alpha * feat_0
+            return feat
 
 
 class APPNP(nn.Module):
@@ -41,42 +58,36 @@ class APPNP(nn.Module):
         for layer in self.layers:
             layer.reset_parameters()
 
-    def forward(self, features):
+    def forward(self, features, edge_weight):
         # prediction step
         h = features
         h = self.feat_drop(h)
         h = self.activation(self.layers[0](h))
         h = self.feat_drop(h)
         h = self.layers[1](h)
-        h = self.propagate(self.g, h)
+        h = self.propagate(self.g, h, edge_weight)
         return h
 
 
-def evaluate(model, features, labels, mask):
-    model.eval()
-    with torch.no_grad():
-        logits = model(features)
-        logits = logits[mask]
-        labels = labels[mask]
-        _, indices = torch.max(logits, dim=1)
-        correct = torch.sum(indices == labels)
-        return correct.item() * 1.0 / len(labels)
-
+def preprocess(g):
+    g.edata['e'] = torch.ones(g.number_of_edges(), device=g.device, dtype=torch.float)
+    g.ndata['i'] = g.in_degrees() ** -0.5
+    g.apply_edges(fn.u_mul_e('i', 'e', out='e'))
+    g.apply_edges(fn.v_mul_e('i', 'e', out='e'))
+    return g
 
 def main(args, g, num_classes):
 
     features = g.ndata["feat"]
     labels = g.ndata["label"]
     train_mask = g.ndata["train_mask"]
-    val_mask = g.ndata["val_mask"]
-    test_mask = g.ndata["test_mask"]
     in_feats = features.shape[1]
     n_classes = num_classes
-    n_edges = g.number_of_edges()
 
     # add self loop
     g = dgl.remove_self_loop(g)
     g = dgl.add_self_loop(g)
+    g = preprocess(g)
 
     # create APPNP model
     model = APPNP(
@@ -92,46 +103,7 @@ def main(args, g, num_classes):
     )
 
     model.cuda()
-    loss_fcn = torch.nn.CrossEntropyLoss()
-
-    # use optimizer
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=1e-2, weight_decay=5e-4
-    )
-
-    # initialize graph
-    dur = []
-    for epoch in range(20):
-        model.train()
-        if epoch >= 3:
-            t0 = time.time()
-        # forward
-        logits = model(features)
-        loss = loss_fcn(logits[train_mask], labels[train_mask])
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        if epoch >= 3:
-            dur.append(time.time() - t0)
-
-        acc = evaluate(model, features, labels, val_mask)
-        print(
-            "Epoch {:05d} | Time(s) {:.4f} | Loss {:.4f} | Accuracy {:.4f} | "
-            "ETputs(KTEPS) {:.2f}".format(
-                epoch,
-                np.mean(dur),
-                loss.item(),
-                acc,
-                n_edges / np.mean(dur) / 1000,
-            )
-        )
-
-    print()
-    acc = evaluate(model, features, labels, test_mask)
-    print("Test Accuracy {:.4f}".format(acc))
-
+    benchmark(20, 3, model, labels, train_mask, features, g.edata['e'])
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

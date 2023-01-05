@@ -5,10 +5,33 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import dgl
+import dgl.function as fn
 import dgl.nn as dglnn
 from dgl import AddSelfLoop
-from utils import load_dataset
+from utils import load_dataset, benchmark
 
+
+# pylint: disable=W0235
+class GraphConv(nn.Module):
+    def __init__(self,
+                 in_feats,
+                 out_feats):
+        super(GraphConv, self).__init__()
+        self.W = nn.Linear(in_feats, out_feats)
+
+    
+    def forward(self, graph, feat):
+        with graph.local_scope():
+            aggregate_fn = fn.u_mul_e('h', 'e', 'm')
+
+            feat = self.W(feat)
+            graph.srcdata['h'] = feat
+            graph.update_all(aggregate_fn, fn.sum(msg='m', out='h'))
+            rst = graph.dstdata['h']
+
+            rst = torch.relu(rst)
+
+            return rst
 
 class GCN(nn.Module):
     def __init__(self, in_size, hid_size, out_size):
@@ -16,53 +39,23 @@ class GCN(nn.Module):
         self.layers = nn.ModuleList()
         # two-layer GCN
         self.layers.append(
-            dglnn.GraphConv(in_size, hid_size, activation=F.relu)
+            GraphConv(in_size, hid_size)
         )
-        self.layers.append(dglnn.GraphConv(hid_size, out_size))
-        self.dropout = nn.Dropout(0.5)
+        self.layers.append(GraphConv(hid_size, out_size))
 
     def forward(self, g, features):
         h = features
         for i, layer in enumerate(self.layers):
-            if i != 0:
-                h = self.dropout(h)
             h = layer(g, h)
         return h
 
 
-def evaluate(g, features, labels, mask, model):
-    model.eval()
-    with torch.no_grad():
-        logits = model(g, features)
-        logits = logits[mask]
-        labels = labels[mask]
-        _, indices = torch.max(logits, dim=1)
-        correct = torch.sum(indices == labels)
-        return correct.item() * 1.0 / len(labels)
-
-
-def train(g, features, labels, masks, model):
-    # define train/val samples, loss function and optimizer
-    train_mask = masks[0]
-    val_mask = masks[1]
-    loss_fcn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=5e-4)
-
-    # training loop
-    for epoch in range(200):
-        model.train()
-        logits = model(g, features)
-        loss = loss_fcn(logits[train_mask], labels[train_mask])
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        acc = evaluate(g, features, labels, val_mask, model)
-        print(
-            "Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} ".format(
-                epoch, loss.item(), acc
-            )
-        )
-
+def preprocess(g):
+    g.edata['e'] = torch.ones(g.number_of_edges(), device=g.device, dtype=torch.float)
+    g.ndata['i'] = g.in_degrees() ** -0.5
+    g.apply_edges(fn.u_mul_e('i', 'e', out='e'))
+    g.apply_edges(fn.v_mul_e('i', 'e', out='e'))
+    return g
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -77,7 +70,8 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     g, num_classes = load_dataset(args.dataset, device)
 
-    g = g.int().to(device)
+    g = preprocess(g)
+
     features = g.ndata["feat"]
     labels = g.ndata["label"]
     masks = g.ndata["train_mask"], g.ndata["val_mask"], g.ndata["test_mask"]
@@ -87,11 +81,7 @@ if __name__ == "__main__":
     out_size = num_classes 
     model = GCN(in_size, 16, out_size).to(device)
 
-    # model training
-    print("Training...")
-    train(g, features, labels, masks, model)
 
-    # test the model
-    print("Testing...")
-    acc = evaluate(g, features, labels, masks[2], model)
-    print("Test accuracy {:.4f}".format(acc))
+    benchmark(20, 3, model, labels, g.ndata['train_mask'], g, features)
+
+

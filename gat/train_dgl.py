@@ -5,8 +5,59 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import dgl.nn as dglnn
+import dgl.function as fn
+from dgl.ops import edge_softmax
 import argparse
-from utils import load_dataset
+from utils import load_dataset, benchmark
+
+class GATConv(nn.Module):
+    def __init__(self,
+                 in_feats,
+                 out_feats,
+                 num_heads,
+                 dropout=0.6):
+        super(GATConv, self).__init__()
+        self._num_heads = num_heads
+        self._in_src_feats, self._in_dst_feats = in_feats, in_feats
+        self._out_feats = out_feats
+        self.fc = nn.Linear(
+            self._in_src_feats, out_feats * num_heads, bias=False)
+        self.attn_l = nn.Parameter(torch.FloatTensor(size=(1, num_heads, out_feats)))
+        self.attn_r = nn.Parameter(torch.FloatTensor(size=(1, num_heads, out_feats)))
+        self.dropout = nn.Dropout(dropout)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        gain = nn.init.calculate_gain('relu')
+        if hasattr(self, 'fc'):
+            nn.init.xavier_normal_(self.fc.weight, gain=gain)
+        else:
+            nn.init.xavier_normal_(self.fc_src.weight, gain=gain)
+            nn.init.xavier_normal_(self.fc_dst.weight, gain=gain)
+        nn.init.xavier_normal_(self.attn_l, gain=gain)
+        nn.init.xavier_normal_(self.attn_r, gain=gain)
+
+    def forward(self, graph, feat):
+        with graph.local_scope():
+            src_prefix_shape = feat.shape[:-1]
+            h_src = self.dropout(feat)
+            feat_src = feat_dst = self.fc(h_src).view(
+                *src_prefix_shape, self._num_heads, self._out_feats)
+            el = (feat_src * self.attn_l).sum(dim=-1).unsqueeze(-1)
+            er = (feat_dst * self.attn_r).sum(dim=-1).unsqueeze(-1)
+            graph.srcdata.update({'ft': feat_src, 'el': el})
+            graph.dstdata.update({'er': er})
+            # compute edge attention, el and er are a_l Wh_i and a_r Wh_j respectively.
+            graph.apply_edges(fn.u_add_v('el', 'er', 'e'))
+            e = F.leaky_relu(graph.edata.pop('e'))
+            # compute softmax
+            graph.edata['a'] = self.dropout(edge_softmax(graph, e))
+            # message passing
+            graph.update_all(fn.u_mul_e('ft', 'a', 'm'),
+                             fn.sum('m', 'ft'))
+            rst = graph.dstdata['ft']
+
+            return rst
 
 
 class GAT(nn.Module):
@@ -14,70 +65,21 @@ class GAT(nn.Module):
         super().__init__()
         self.gat_layers = nn.ModuleList()
         # two-layer GAT
-        self.gat_layers.append(
-            dglnn.GATConv(
+        self.in_conv = GATConv(
                 in_size,
                 hid_size,
                 heads[0],
-                feat_drop=0.6,
-                attn_drop=0.6,
-                activation=F.elu,
             )
-        )
-        self.gat_layers.append(
-            dglnn.GATConv(
+        self.out_conv = GATConv(
                 hid_size * heads[0],
                 out_size,
                 heads[1],
-                feat_drop=0.6,
-                attn_drop=0.6,
-                activation=None,
             )
-        )
 
-    def forward(self, g, inputs):
-        h = inputs
-        for i, layer in enumerate(self.gat_layers):
-            h = layer(g, h)
-            if i == 1:  # last layer
-                h = h.mean(1)
-            else:  # other layer(s)
-                h = h.flatten(1)
-        return h
-
-
-def evaluate(g, features, labels, mask, model):
-    model.eval()
-    with torch.no_grad():
-        logits = model(g, features)
-        logits = logits[mask]
-        labels = labels[mask]
-        _, indices = torch.max(logits, dim=1)
-        correct = torch.sum(indices == labels)
-        return correct.item() * 1.0 / len(labels)
-
-
-def train(g, features, labels, masks, model):
-    # define train/val samples, loss function and optimizer
-    train_mask = masks[0]
-    val_mask = masks[1]
-    loss_fcn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=5e-3, weight_decay=5e-4)
-
-    # training loop
-    for epoch in range(200):
-        model.train()
-        logits = model(g, features)
-        loss = loss_fcn(logits[train_mask], labels[train_mask])
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        acc = evaluate(g, features, labels, val_mask, model)
-        print(
-            "Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} ".format(
-                epoch, loss.item(), acc
-            )
-        )
+    def forward(self, g, X):
+        Z = F.elu(self.in_conv(g, X)).flatten(1)
+        Z = self.out_conv(g, Z).mean(1)
+        return Z
 
 
 if __name__ == "__main__":
@@ -95,18 +97,10 @@ if __name__ == "__main__":
     g = g.int().to(dev)
     features = g.ndata["feat"]
     labels = g.ndata["label"]
-    masks = g.ndata["train_mask"], g.ndata["val_mask"], g.ndata["test_mask"]
 
     # create GAT model
     in_size = features.shape[1]
     out_size = num_classes
     model = GAT(in_size, 8, out_size, heads=[8, 1]).to(dev)
 
-    # model training
-    print("Training...")
-    train(g, features, labels, masks, model)
-
-    # test the model
-    print("Testing...")
-    acc = evaluate(g, features, labels, masks[2], model)
-    print("Test accuracy {:.4f}".format(acc))
+    benchmark(20, 3, model, labels, g.ndata['train_mask'], g, features)

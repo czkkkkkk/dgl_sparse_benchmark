@@ -3,13 +3,13 @@
 (https://arxiv.org/abs/1710.10903)
 """
 
-import dgl.mock_sparse2 as dglsp
+import dgl.sparse as dglsp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from dgl.data import CoraGraphDataset
 from torch.optim import Adam
-from utils import load_dataset
+from utils import load_dataset, benchmark
 import argparse
 
 
@@ -49,7 +49,8 @@ class GATConv(nn.Module):
         A_atten = dglsp.val_like(A_hat, a).softmax()
         a_drop = self.dropout(A_atten.val)
         A_atten = dglsp.val_like(A_atten, a_drop)
-        return dglsp.bspmm(A_atten, Z)
+        rst = dglsp.bspmm(A_atten, Z)
+        return rst
 
 
 class GAT(nn.Module):
@@ -84,37 +85,6 @@ def evaluate(g, pred):
     return val_acc, test_acc
 
 
-def train(model, g, A_hat, X):
-    label = g.ndata["label"]
-    train_mask = g.ndata["train_mask"]
-    optimizer = Adam(model.parameters(), lr=1e-2, weight_decay=5e-4)
-
-    for epoch in range(50):
-        # Forward.
-        model.train()
-        logits = model(A_hat, X)
-
-        # Compute loss with nodes in training set.
-        loss = F.cross_entropy(logits[train_mask], label[train_mask])
-
-        # Backward.
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        # Compute prediction.
-        model.eval()
-        logits = model(A_hat, X)
-        pred = logits.argmax(dim=1)
-
-        # Evaluate the prediction.
-        val_acc, test_acc = evaluate(g, pred)
-        print(
-            f"In epoch {epoch}, loss: {loss:.3f}, val acc: {val_acc:.3f}, test"
-            f" acc: {test_acc:.3f}"
-        )
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -130,17 +100,20 @@ if __name__ == "__main__":
     # Create the sparse adjacency matrix A.
     src, dst = g.edges()
     N = g.num_nodes()
-    A = dglsp.create_from_coo(dst, src, shape=(N, N))
+    A = dglsp.from_coo(dst, src, shape=(N, N))
+    src = dst = None
+    label = g.ndata['label']
+    train_mask = g.ndata['train_mask']
+    X = g.ndata["feat"]
+    g = None
 
     # Add self-loops.
     I = dglsp.identity(A.shape, device=dev)
-    A_hat = A + I
+    A = A + I
 
     # Create GAT model.
-    X = g.ndata["feat"]
     in_size = X.shape[1]
     out_size = num_classes
     model = GAT(in_size, out_size).to(dev)
 
-    # Kick off training.
-    train(model, g, A_hat, X)
+    benchmark(20, 3, model, label, train_mask, A, X)

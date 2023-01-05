@@ -1,7 +1,13 @@
 from ogb.nodeproppred import DglNodePropPredDataset
 from dgl.data import CoraGraphDataset
 import torch
+import torch.nn as nn
 import dgl
+import time
+from torch.optim import Adam
+from pynvml import *
+
+nvmlInit()
 
 def OgbDataset(graph_name, dev):
     assert graph_name in ('ogbn-products', 'ogbn-arxiv')
@@ -43,3 +49,39 @@ def load_dataset(name, dev):
         return CoraDataset(dev)
     else:
         return OgbDataset(name, dev)
+
+def print_gpu_memory(msg):
+    print(msg)
+    h = nvmlDeviceGetHandleByIndex(0)
+    info = nvmlDeviceGetMemoryInfo(h)
+    print(f'total    : {info.total / 1e9} GB')
+    print(f'free     : {info.free / 1e9} GB')
+    print(f'used     : {info.used / 1e9} GB')
+    a = torch.cuda.memory_allocated(0)
+    print(f'Torch allocated: {a / 1e9} GB')
+    print(f'Torch max allocated: {torch.cuda.max_memory_allocated(0) / 1e9} GB')
+
+def benchmark(epochs, warmup, model, label, train_mask, *args):
+    optimizer = Adam(model.parameters(), lr=1e-2, weight_decay=5e-4)
+    loss_fcn = nn.CrossEntropyLoss()
+
+    for epoch in range(epochs + warmup):
+        if epoch == warmup:
+            torch.cuda.synchronize(0)
+            start = time.time()
+        model.train()
+
+        # Forward.
+        logits = model(*args)
+
+        # Compute loss with nodes in the training set.
+        loss = loss_fcn(logits[train_mask], label[train_mask])
+
+        # Backward.
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    torch.cuda.synchronize(0)
+    end = time.time()
+    print(f'Using time: {end - start}, Average time an epoch {(end - start) / epochs}')
+    print_gpu_memory('Memory usage during training:')
