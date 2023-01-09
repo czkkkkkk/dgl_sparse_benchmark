@@ -4,11 +4,8 @@ import os.path as osp
 import torch
 import torch.nn.functional as F
 
-import torch_geometric.transforms as T
-from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GATConv
-from utils import benchmack_pyg, load_pyg_dataset
-from torch_sparse import SparseTensor
+from utils import benchmark_fn, load_pyg_dataset
 import torch.nn as nn
 from torch_geometric.utils import softmax
 import torch_sparse
@@ -98,4 +95,4 @@ def train():
     return float(loss)
 
 
-benchmack_pyg(20, 3, train)
+benchmark_fn(20, 3, train)

@@ -6,8 +6,6 @@ import torch.nn.functional as F
 
 import dgl
 import dgl.function as fn
-import dgl.nn as dglnn
-from dgl import AddSelfLoop
 from utils import load_dataset, benchmark
 
 

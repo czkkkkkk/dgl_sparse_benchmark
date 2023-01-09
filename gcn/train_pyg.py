@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 
 import torch_sparse
-from utils import benchmack_pyg, load_pyg_dataset
+from utils import benchmark_fn, load_pyg_dataset
 import torch.nn as nn
 
 
@@ -52,4 +52,4 @@ def train():
     optimizer.step()
 
 
-benchmack_pyg(20, 3, train)
+benchmark_fn(20, 3, train)

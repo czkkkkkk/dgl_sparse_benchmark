@@ -109,7 +109,7 @@ def benchmark(epochs, warmup, model, label, train_mask, *args):
     print_gpu_memory('Memory usage during training:')
 
 
-def benchmack_pyg(epochs, warmup, fn):
+def benchmark_fn(epochs, warmup, fn):
     for epoch in range(epochs + warmup):
         if epoch == warmup:
             torch.cuda.synchronize(0)
