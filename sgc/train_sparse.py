@@ -3,7 +3,7 @@
 (https://arxiv.org/abs/1902.07153)
 """
 
-import dgl.mock_sparse2 as dglsp
+import dgl.sparse as dglsp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # Create the sparse adjacency matrix A
     src, dst = g.edges()
     N = g.num_nodes()
-    A = dglsp.create_from_coo(dst, src, shape=(N, N))
+    A = dglsp.from_coo(dst, src, shape=(N, N))
 
     # Calculate the symmetrically normalized adjacency matrix.
     I = dglsp.identity(A.shape, device=dev)
