@@ -7,9 +7,9 @@ import time
 from torch.optim import Adam
 from pynvml import *
 import os.path as osp
-from torch_geometric.datasets import Planetoid
-from ogb.nodeproppred import PygNodePropPredDataset
-import torch_geometric.transforms as T
+# from torch_geometric.datasets import Planetoid
+# from ogb.nodeproppred import PygNodePropPredDataset
+# import torch_geometric.transforms as T
 
 nvmlInit()
 
@@ -54,22 +54,22 @@ def load_dataset(name, dev):
     else:
         return OgbDataset(name, dev)
 
-def load_pyg_dataset(name, dev):
-    if name == 'cora':
-        path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
-        dataset = Planetoid(path, name, transform=T.NormalizeFeatures())
-        data = dataset[0]
-    else:
-        dataset = PygNodePropPredDataset(name=name, root='/tmp') 
-        split_idx = dataset.get_idx_split()
-        train_idx, valid_idx, test_idx = split_idx["train"], split_idx["valid"], split_idx["test"]
-        data = dataset[0] # pyg graph object
-        train_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
-        train_mask[split_idx['train']] = True
-        data.train_mask = train_mask
-        data.y = data.y.view(-1)
-    data = data.to(dev)
-    return data, dataset
+# def load_pyg_dataset(name, dev):
+#     if name == 'cora':
+#         path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', 'Planetoid')
+#         dataset = Planetoid(path, name, transform=T.NormalizeFeatures())
+#         data = dataset[0]
+#     else:
+#         dataset = PygNodePropPredDataset(name=name, root='/tmp') 
+#         split_idx = dataset.get_idx_split()
+#         train_idx, valid_idx, test_idx = split_idx["train"], split_idx["valid"], split_idx["test"]
+#         data = dataset[0] # pyg graph object
+#         train_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+#         train_mask[split_idx['train']] = True
+#         data.train_mask = train_mask
+#         data.y = data.y.view(-1)
+#     data = data.to(dev)
+#     return data, dataset
 
 
 def print_gpu_memory(msg):

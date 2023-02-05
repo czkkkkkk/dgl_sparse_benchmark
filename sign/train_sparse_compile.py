@@ -46,52 +46,6 @@ class SIGN(nn.Module):
         return self.omega(Z)
 
 
-def evaluate(g, pred):
-    label = g.ndata["label"]
-    val_mask = g.ndata["val_mask"]
-    test_mask = g.ndata["test_mask"]
-
-    # Compute accuracy on validation/test set.
-    val_acc = (pred[val_mask] == label[val_mask]).float().mean()
-    test_acc = (pred[test_mask] == label[test_mask]).float().mean()
-    return val_acc, test_acc
-
-
-def train(model, g, X_sign):
-    label = g.ndata["label"]
-    train_mask = g.ndata["train_mask"]
-    optimizer = Adam(model.parameters(), lr=3e-3)
-
-    for epoch in range(10):
-        # Switch the model to training mode.
-        model.train()
-
-        # Forward.
-        logits = model(X_sign)
-
-        # Compute loss with nodes in training set.
-        loss = F.cross_entropy(logits[train_mask], label[train_mask])
-
-        # Backward.
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        # Switch the model to evaluating mode.
-        model.eval()
-
-        # Compute prediction.
-        logits = model(X_sign)
-        pred = logits.argmax(1)
-
-        # Evaluate the prediction.
-        val_acc, test_acc = evaluate(g, pred)
-        print(
-            f"In epoch {epoch}, loss: {loss:.3f}, val acc: {val_acc:.3f}, test"
-            f" acc: {test_acc:.3f}"
-        )
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -129,11 +83,9 @@ if __name__ == "__main__":
     model = SIGN(in_size, out_size, r).to(dev)
 
     # Kick off training.
-    train(model, g, X_sign)
     benchmark(200, 3, model, label, train_mask, X_sign)
 
     model_script = torch.jit.script(model)
     print(model_script.graph)
     print(model_script.code)
-
     benchmark(200, 3, model_script, label, train_mask, X_sign)
