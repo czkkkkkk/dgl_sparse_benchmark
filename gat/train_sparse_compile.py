@@ -120,5 +120,5 @@ if __name__ == "__main__":
     model_script = torch.jit.script(model)
     print(model_script.graph)
     print(model_script.code)
-    benchmark(200, 3, model_script, label, train_mask, A, X)
+    benchmark(20, 3, model_script, label, train_mask, A, X)
 

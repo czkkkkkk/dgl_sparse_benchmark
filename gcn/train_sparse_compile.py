@@ -2,6 +2,9 @@
 [Semi-Supervised Classification with Graph Convolutional Networks]
 (https://arxiv.org/abs/1609.02907)
 """
+import ScheduleProfiler
+profiler = ScheduleProfiler.ScheduleProfiler()
+
 import sys
 sys.path.append("..")    # 跳到上级目录下面（sys.path添加目录时注意是在windows还是在Linux下，windows下需要‘\\'否则会出错。）
 
@@ -76,10 +79,10 @@ if __name__ == "__main__":
     in_size = X.shape[1]
     out_size = num_classes
     model = GCN(in_size, out_size).to(dev)
-    benchmark(200, 3, model, label, train_mask, A_norm, X)
+    benchmark(20, 3, model, label, train_mask, A_norm, X)
     
     model_script = torch.jit.script(model)
     print(model_script.graph)
     print(model_script.code)
     
-    benchmark(200, 3, model_script, label, train_mask, A_norm, X)
+    benchmark(20, 3, model_script, label, train_mask, A_norm, X)

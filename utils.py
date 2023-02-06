@@ -7,6 +7,8 @@ import time
 from torch.optim import Adam
 from pynvml import *
 import os.path as osp
+import ScheduleProfiler
+profiler = ScheduleProfiler.ScheduleProfiler()
 # from torch_geometric.datasets import Planetoid
 # from ogb.nodeproppred import PygNodePropPredDataset
 # import torch_geometric.transforms as T
@@ -15,7 +17,7 @@ nvmlInit()
 
 def OgbDataset(graph_name, dev):
     assert graph_name in ('ogbn-products', 'ogbn-arxiv')
-    dataset = DglNodePropPredDataset(name=graph_name, root='/tmp')
+    dataset = DglNodePropPredDataset(name=graph_name, root='./dataset')
     g, labels = dataset[0]
     g = dgl.add_self_loop(g).to(dev)
     split_idx = dataset.get_idx_split()
@@ -40,7 +42,7 @@ def OgbDataset(graph_name, dev):
     return g, num_labels
 
 def CoraDataset(dev):
-    dataset = CoraGraphDataset()
+    dataset = CoraGraphDataset("./dataset")
     g = dataset[0].to(dev)
     labels = g.ndata['label']
     num_labels = len(
@@ -88,6 +90,7 @@ def benchmark(epochs, warmup, model, label, train_mask, *args):
     loss_fcn = nn.CrossEntropyLoss()
 
     for epoch in range(epochs + warmup):
+        profiler.start()
         if epoch == warmup:
             torch.cuda.synchronize(0)
             start = time.time()
@@ -103,6 +106,7 @@ def benchmark(epochs, warmup, model, label, train_mask, *args):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        profiler.stop()
     torch.cuda.synchronize(0)
     end = time.time()
     print(f'Using time: {end - start}, Average time an epoch {(end - start) / epochs}')
