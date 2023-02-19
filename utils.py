@@ -97,16 +97,24 @@ def benchmark(epochs, warmup, model, label, train_mask, *args):
         model.train()
 
         # Forward.
+        profiler.range_push("forward")
         logits = model(*args)
+        profiler.range_pop()
 
         # Compute loss with nodes in the training set.
+        profiler.range_push("loss")
         loss = loss_fcn(logits[train_mask], label[train_mask])
+        profiler.range_pop()
 
         # Backward.
         optimizer.zero_grad()
+        profiler.range_push("backward")
         loss.backward()
+        profiler.range_pop()
         optimizer.step()
+        
         profiler.stop()
+        print(f"epoch {epoch}, loss: {loss}")
     torch.cuda.synchronize(0)
     end = time.time()
     print(f'Using time: {end - start}, Average time an epoch {(end - start) / epochs}')
