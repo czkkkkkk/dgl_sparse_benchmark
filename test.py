@@ -36,7 +36,7 @@ class GATConv(nn.Module):
     # (HIGHLIGHT) Take the advantage of DGL sparse APIs to implement
     # multihead attention.
     ###########################################################################
-    def forward(self, A_hat: dglsp.SparseMatrix, Z: torch.Tensor):
+    def forward(self, A_hat, Z):
         Z = self.dropout(Z)
         Z = self.W(Z).view(Z.shape[0], self.out_size, self.num_heads)
 
@@ -66,7 +66,7 @@ class GAT(nn.Module):
             hidden_size * num_heads, out_size, num_heads=1, dropout=dropout
         )
 
-    def forward(self, A_hat: dglsp.SparseMatrix, X: torch.Tensor):
+    def forward(self, A_hat, X):
         # Flatten the head and feature dimension.
         Z = F.elu(self.in_conv(A_hat, X)).flatten(1)
         # Average over the head dimension.
@@ -93,11 +93,6 @@ if __name__ == "__main__":
         default="cora",
         help="Dataset name ('cora', 'ogbn-products', 'ogbn-arxiv').",
     )
-    parser.add_argument(
-        "--compile",
-        type=bool,
-        default=False,
-    )
     args = parser.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     g, num_classes = load_dataset(args.dataset, dev)
@@ -106,25 +101,13 @@ if __name__ == "__main__":
     src, dst = g.edges()
     N = g.num_nodes()
     A = dglsp.from_coo(dst, src, shape=(N, N))
-    src = dst = None
-    label = g.ndata['label']
-    train_mask = g.ndata['train_mask']
-    X = g.ndata["feat"]
-    g = None
+    print(A.shape)
+    # src = dst = None
+    # label = g.ndata['label']
+    # train_mask = g.ndata['train_mask']
+    # X = g.ndata["feat"]
+    # g = None
 
-    # Add self-loops.
-    I = dglsp.identity(A.shape, device=dev)
-    A = A + I
-
-    # Create GAT model.
-    in_size = X.shape[1]
-    out_size = num_classes
-    model = GAT(in_size, out_size).to(dev)
-    if not args.compile:
-        benchmark(20, 3, model, label, train_mask, A, X)
-    else:
-        model_script = torch.jit.script(model)
-        print(model_script.graph)
-        print(model_script.code)
-        benchmark(20, 3, model_script, label, train_mask, A, X)
-
+    # # Add self-loops.
+    # I = dglsp.identity(A.shape, device=dev)
+    # A = A + I

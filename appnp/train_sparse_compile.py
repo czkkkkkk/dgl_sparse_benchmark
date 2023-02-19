@@ -52,6 +52,11 @@ if __name__ == "__main__":
         default="cora",
         help="Dataset name ('cora', 'ogbn-products', 'ogbn-arxiv').",
     )
+    parser.add_argument(
+        "--compile",
+        type=bool,
+        default=False,
+    )
     args = parser.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     g, num_classes = load_dataset(args.dataset, dev)
@@ -71,16 +76,16 @@ if __name__ == "__main__":
     A = A + I
     D_hat = dglsp.diag(A.sum(dim=1)) ** -0.5
     A = D_hat @ A @ D_hat
-    print(type(A))
     # Create APPNP model.
     in_size = X.shape[1]
     out_size = num_classes
     model = APPNP(in_size, out_size).to(dev)
 
     # Kick off training.
-    benchmark(20, 3, model, label, train_mask, A, X)
-
-    model_script = torch.jit.script(model)
-    print(model_script.graph)
-    print(model_script.code)
-    benchmark(20, 3, model_script, label, train_mask, A, X)
+    if not args.compile:
+        benchmark(20, 3, model, label, train_mask, A, X)
+    else:
+        model_script = torch.jit.script(model)
+        print(model_script.graph)
+        print(model_script.code)
+        benchmark(20, 3, model_script, label, train_mask, A, X)
