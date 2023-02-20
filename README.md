@@ -40,23 +40,56 @@ Each cell is in form of "Epoch time(ms)/Epoch time with torchScript(ms)".
 | appnp | 4.22/3.18 |  91.2/86.0  |      OOM      |
 | sign | 9.21/8.89 |  67.8/66.8  |      OOM      |
 
+## Fused kernel with torchScript
+### GCN fused kernel
+
+GCN model has one fused kernel in backward process:
+
+Before fuse:
+
+|                                                               Name                                                               |   Start   |  Duration  |  GPU	Context  |
+| :-------------------------------------------------------------------------------------------------------------------------------: | :--------: | :---------: | :------------: |
+|                                                       volta_sgemm_32x128_nn                                                       | 0.0181306s | 10.879 μs | GPU 0	Stream 7 |
+|                                                  volta_sgemm_32x32_sliced1x4_nt                                                  | 0.0181505s | 136.061 μs | GPU 0	Stream 7 |
+|                        void at::native::reduce_kernel<(int)512, (int)1, at::native::ReduceOp(instance 1)]>                        | 0.0182879s | 15.967 μs | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add`<float>`, at::detail::Array<char *, (int)3>> | 0.0183049s |  3.968 μs  | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add`<float>`, at::detail::Array<char *, (int)3>> |  0.01831s  |  3.936 μs  | GPU 0	Stream 7 |
+
+After fuse:
+
+|                                                               Name                                                               |   Start   |  Duration  |  GPU	Context  |
+| :-------------------------------------------------------------------------------------------------------------------------------: | :-------: | :---------: | :------------: |
+|                                                       volta_sgemm_32x128_nn                                                       | 0.369161s | 10.848 μs | GPU 0	Stream 7 |
+|                                                  volta_sgemm_32x32_sliced1x4_nt                                                  | 0.369197s | 135.645 μs | GPU 0	Stream 7 |
+| CudaCodeGen::kernel1(CudaCodeGen::Tensor<float, (int)2>, CudaCodeGen::Tensor<float, (int)2>, CudaCodeGen::Tensor<float, (int)2>) | 0.369334s |  4.768 μs  | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add`<float>`, at::detail::Array<char *, (int)3>> | 0.36934s |  3.936 μs  | GPU 0	Stream 7 |
+
+### GAT fused kernel
+GAT model has two fused kernel in backward process similar to GCN model.
+
+
 ### Appnp fused kernel
 
-torchScript automatically fuses three element-wise kernel in appnp model.
+Appnp model has two fused kernel in forward process.
 
+
+#### Fused kernel 1
 ```python
 Z = (1 - self.alpha) * dglsp.spmm(A_drop, Z) + self.alpha * Z_0
 ```
 
+torchScript fuses three element-wise kernel in appnp model.
+
 Before fuse
 
-|Name |   Start   |  Duration  |  GPU	Context |
-| :-------: | :--------: | :--------: | :------------: |
-|    void dgl::aten::cuda::SpMMCooKernel    | 0.0111332s | 12.320 μs | GPU 0	Stream 7 |
-| void at::native::vectorized_elementwise_kernel<(int)4, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulFunctor`<float>`>, at::detail::Array<char *, (int)2>> | 0.0111735s | 3.968 μs | GPU 0	Stream 7 |
-| void at::native::vectorized_elementwise_kernel<(int)4, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulFunctor`<float>`>, at::detail::Array<char *, (int)2>> | 0.0111959s | 3.967 μs | GPU 0	Stream 7 |
-|void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add`<float>`, at::detail::Array<char *, (int)3>>| 0.0112133s | 4.160 μs | GPU 0	Stream 7 |
-|void at::native::`<unnam>`::edfused_dropout_kernel_vec<float, float, unsigned int, (int)1, (int)4, bool> | 0.0112699s | 6.273 μs | GPU 0	Stream 7 |
+|                                                                                              Name                                                                                              |   Start   |  Duration  |  GPU	Context  |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------: | :--------: | :------------: |
+|                                                                              void dgl::aten::cuda::SpMMCooKernel                                                                              | 0.0111332s | 12.320 μs | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulFunctor `<float>`>, at::detail::Array<char *, (int)2>> | 0.0111735s | 3.968 μs | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulFunctor `<float>`>, at::detail::Array<char *, (int)2>> | 0.0111959s | 3.967 μs | GPU 0	Stream 7 |
+|                               void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add `<float>`, at::detail::Array<char *, (int)3>>                               | 0.0112133s | 4.160 μs | GPU 0	Stream 7 |
+|                                           void at::native::`<unnam>`::edfused_dropout_kernel_vec<float, float, unsigned int, (int)1, (int)4, bool>                                           | 0.0112699s | 6.273 μs | GPU 0	Stream 7 |
+
 
 After fuse
 
@@ -66,11 +99,44 @@ After fuse
 |                   CudaCodeGen::kernel1                   | 0.0109722s | 4.160 μs | GPU 0	Stream 7 |
 | void at::native::`<unnamed>`::fused_dropout_kernel_vec | 0.0110076s | 6.304 μs | GPU 0	Stream 7 |
 
+#### Fused kernel 2
+
+torchScript fuses the nn.Relu() and nn.Dropout in Appnp model.
+
+```python
+self.f_theta = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(in_size, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size, out_size),
+        )
+```
+
+Before fuse
+
+|                                                                                              Name                                                                                              |   Start   |  Duration  |  GPU	Context  |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------: | :--------: | :------------: |
+|volta_sgemm_64x64_tn|0.0250103s|274.265 μs|GPU 0	Stream 7|
+|void at::native::vectorized_elementwise_kernel<(int)4, at::native::<unnamed>::launch_clamp_scalar|0.025286s|7.199 μs|GPU 0	Stream 7|
+|void at::native::<unnamed>::fused_dropout_kernel_vec<float, float,...>|0.0252944s|10.560 μs|GPU 0	Stream 7|
+|volta_sgemm_32x128_tn|	0.0253063s|	22.463 μs|	GPU 0	Stream 7|
+
+
+After fuse
+
+|                           Name                           |   Start   |  Duration  |  GPU	Context  |
+| :------------------------------------------------------: | :--------: | :--------: | :------------: |
+|volta_sgemm_64x64_tn|	1.06408s|	255.610 μs|	GPU 0	Stream 7|
+|CudaCodeGen::kernel2(CudaCodeGen::Tensor<float, (int)2>,...)|	1.06434s|	9.055 μs|	GPU 0	Stream 7|
+|volta_sgemm_32x128_tn|	1.06435s|	20.255 μs|	GPU 0	Stream 7|
+
+
 ## Model IR
 
 GCN
 
-``` python
+```python
 def forward(self,
     A_norm: __torch__.dgl.sparse.sparse_matrix.SparseMatrix,
     X: Tensor) -> Tensor:
@@ -84,7 +150,7 @@ def forward(self,
 
 GAT
 
-``` python
+```python
 def forward(self,
     A_hat: __torch__.dgl.sparse.sparse_matrix.SparseMatrix,
     X: Tensor) -> Tensor:
@@ -98,7 +164,7 @@ def forward(self,
 
 appnp
 
-``` python
+```python
 def forward(self,
     A_hat: __torch__.dgl.sparse.sparse_matrix.SparseMatrix,
     X: Tensor) -> Tensor:
@@ -122,7 +188,8 @@ def forward(self,
 ```
 
 sign
-``` python
+
+```python
 def forward(self,
     X_sign: Tensor) -> Tensor:
   theta = self.theta
