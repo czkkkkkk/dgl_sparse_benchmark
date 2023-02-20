@@ -1,113 +1,46 @@
-"""
-[Graph Attention Networks]
-(https://arxiv.org/abs/1710.10903)
-"""
-
-import dgl.sparse as dglsp
+from math import sqrt
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from dgl.data import CoraGraphDataset
-from torch.optim import Adam
-from utils import load_dataset, benchmark
-import argparse
+import traceback
+
+class NewTensor:
+    def __init__(self, value: torch.Tensor):
+        self.value = value  # x坐标
+
+    def __matmul__(self, other: "NewTensor") -> torch.Tensor:
+        return -torch.matmul(self.value, other.value)
+
+    def __add__(self, other: "NewTensor") -> torch.Tensor:
+        return -torch.add(self.value, other.value)
 
 
-class GATConv(nn.Module):
-    def __init__(self, in_size, out_size, num_heads, dropout):
-        super().__init__()
+class mul_model:
+    def __init__(self) -> None:
+        pass
 
-        self.out_size = out_size
-        self.num_heads = num_heads
-
-        self.dropout = nn.Dropout(dropout)
-        self.W = nn.Linear(in_size, out_size * num_heads)
-        self.a_l = nn.Parameter(torch.zeros(1, out_size, num_heads))
-        self.a_r = nn.Parameter(torch.zeros(1, out_size, num_heads))
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        gain = nn.init.calculate_gain("relu")
-        nn.init.xavier_normal_(self.W.weight, gain=gain)
-        nn.init.xavier_normal_(self.a_l, gain=gain)
-        nn.init.xavier_normal_(self.a_r, gain=gain)
-
-    ###########################################################################
-    # (HIGHLIGHT) Take the advantage of DGL sparse APIs to implement
-    # multihead attention.
-    ###########################################################################
-    def forward(self, A_hat, Z):
-        Z = self.dropout(Z)
-        Z = self.W(Z).view(Z.shape[0], self.out_size, self.num_heads)
-
-        # a^T [Wh_i || Wh_j] = a_l Wh_i + a_r Wh_j
-        e_l = (Z * self.a_l).sum(dim=1)
-        e_r = (Z * self.a_r).sum(dim=1)
-        e = e_l[A_hat.row] + e_r[A_hat.col]
-
-        a = F.leaky_relu(e)
-        A_atten = dglsp.val_like(A_hat, a).softmax()
-        a_drop = self.dropout(A_atten.val)
-        A_atten = dglsp.val_like(A_atten, a_drop)
-        rst = dglsp.bspmm(A_atten, Z)
-        return rst
+    def forward(self, x: NewTensor, y: NewTensor):
+        return x @ y
 
 
-class GAT(nn.Module):
-    def __init__(
-        self, in_size, out_size, hidden_size=8, num_heads=8, dropout=0.6
-    ):
-        super().__init__()
+class add_model:
+    def __init__(self) -> None:
+        pass
 
-        self.in_conv = GATConv(
-            in_size, hidden_size, num_heads=num_heads, dropout=dropout
-        )
-        self.out_conv = GATConv(
-            hidden_size * num_heads, out_size, num_heads=1, dropout=dropout
-        )
-
-    def forward(self, A_hat, X):
-        # Flatten the head and feature dimension.
-        Z = F.elu(self.in_conv(A_hat, X)).flatten(1)
-        # Average over the head dimension.
-        Z = self.out_conv(A_hat, Z).mean(-1)
-        return Z
+    def forward(self, x: NewTensor, y: NewTensor):
+        return x + y
 
 
-def evaluate(g, pred):
-    label = g.ndata["label"]
-    val_mask = g.ndata["val_mask"]
-    test_mask = g.ndata["test_mask"]
+model_add = add_model()
+try:
+    a_s = torch.jit.script(model_add)
+    print("add model success")
+except Exception as e:
+    print("add model fail")
+    traceback.print_exc()
 
-    # Compute accuracy on validation/test set.
-    val_acc = (pred[val_mask] == label[val_mask]).float().mean()
-    test_acc = (pred[test_mask] == label[test_mask]).float().mean()
-    return val_acc, test_acc
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="cora",
-        help="Dataset name ('cora', 'ogbn-products', 'ogbn-arxiv').",
-    )
-    args = parser.parse_args()
-    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    g, num_classes = load_dataset(args.dataset, dev)
-
-    # Create the sparse adjacency matrix A.
-    src, dst = g.edges()
-    N = g.num_nodes()
-    A = dglsp.from_coo(dst, src, shape=(N, N))
-    print(A.shape)
-    # src = dst = None
-    # label = g.ndata['label']
-    # train_mask = g.ndata['train_mask']
-    # X = g.ndata["feat"]
-    # g = None
-
-    # # Add self-loops.
-    # I = dglsp.identity(A.shape, device=dev)
-    # A = A + I
+model_mul = mul_model()
+try:
+    a_s = torch.jit.script(model_mul)
+    print("mul model success")
+except:
+    print("mul model fail")
+    traceback.print_exc()
