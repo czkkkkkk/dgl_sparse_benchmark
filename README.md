@@ -41,39 +41,40 @@ Each cell is in form of "Epoch time(ms)/Epoch time with torchScript(ms)".
 | sign | 9.21/8.89 |  67.8/66.8  |      OOM      |
 
 ## Fused kernel with torchScript
+
 ### GCN fused kernel
 
 GCN model has one fused kernel in backward process:
 
 Before fuse:
 
-|                                                               Name                                                               |   Start   |  Duration  |  GPU	Context  |
-| :-------------------------------------------------------------------------------------------------------------------------------: | :--------: | :---------: | :------------: |
+|                                                                Name                                                                |   Start   |  Duration  |  GPU	Context  |
+| :--------------------------------------------------------------------------------------------------------------------------------: | :--------: | :---------: | :------------: |
 |                                                       volta_sgemm_32x128_nn                                                       | 0.0181306s | 10.879 μs | GPU 0	Stream 7 |
-|                                                  volta_sgemm_32x32_sliced1x4_nt                                                  | 0.0181505s | 136.061 μs | GPU 0	Stream 7 |
+|                                                   volta_sgemm_32x32_sliced1x4_nt                                                   | 0.0181505s | 136.061 μs | GPU 0	Stream 7 |
 |                        void at::native::reduce_kernel<(int)512, (int)1, at::native::ReduceOp(instance 1)]>                        | 0.0182879s | 15.967 μs | GPU 0	Stream 7 |
-| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add`<float>`, at::detail::Array<char *, (int)3>> | 0.0183049s |  3.968 μs  | GPU 0	Stream 7 |
-| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add`<float>`, at::detail::Array<char *, (int)3>> |  0.01831s  |  3.936 μs  | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add `<float>`, at::detail::Array<char *, (int)3>> | 0.0183049s |  3.968 μs  | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add `<float>`, at::detail::Array<char *, (int)3>> |  0.01831s  |  3.936 μs  | GPU 0	Stream 7 |
 
 After fuse:
 
-|                                                               Name                                                               |   Start   |  Duration  |  GPU	Context  |
-| :-------------------------------------------------------------------------------------------------------------------------------: | :-------: | :---------: | :------------: |
+|                                                                Name                                                                |   Start   |  Duration  |  GPU	Context  |
+| :--------------------------------------------------------------------------------------------------------------------------------: | :-------: | :---------: | :------------: |
 |                                                       volta_sgemm_32x128_nn                                                       | 0.369161s | 10.848 μs | GPU 0	Stream 7 |
-|                                                  volta_sgemm_32x32_sliced1x4_nt                                                  | 0.369197s | 135.645 μs | GPU 0	Stream 7 |
-| CudaCodeGen::kernel1(CudaCodeGen::Tensor<float, (int)2>, CudaCodeGen::Tensor<float, (int)2>, CudaCodeGen::Tensor<float, (int)2>) | 0.369334s |  4.768 μs  | GPU 0	Stream 7 |
-| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add`<float>`, at::detail::Array<char *, (int)3>> | 0.36934s |  3.936 μs  | GPU 0	Stream 7 |
+|                                                   volta_sgemm_32x32_sliced1x4_nt                                                   | 0.369197s | 135.645 μs | GPU 0	Stream 7 |
+|  CudaCodeGen::kernel1(CudaCodeGen::Tensor<float, (int)2>, CudaCodeGen::Tensor<float, (int)2>, CudaCodeGen::Tensor<float, (int)2>)  | 0.369334s |  4.768 μs  | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add `<float>`, at::detail::Array<char *, (int)3>> | 0.36934s |  3.936 μs  | GPU 0	Stream 7 |
 
 ### GAT fused kernel
-GAT model has two fused kernel in backward process similar to GCN model.
 
+GAT model has two fused kernel in backward process similar to GCN model.
 
 ### Appnp fused kernel
 
 Appnp model has two fused kernel in forward process.
 
-
 #### Fused kernel 1
+
 ```python
 Z = (1 - self.alpha) * dglsp.spmm(A_drop, Z) + self.alpha * Z_0
 ```
@@ -89,7 +90,6 @@ Before fuse
 | void at::native::vectorized_elementwise_kernel<(int)4, at::native::AUnaryFunctor<float, float, float, at::native::binary_internal::MulFunctor `<float>`>, at::detail::Array<char *, (int)2>> | 0.0111959s | 3.967 μs | GPU 0	Stream 7 |
 |                               void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctor_add `<float>`, at::detail::Array<char *, (int)3>>                               | 0.0112133s | 4.160 μs | GPU 0	Stream 7 |
 |                                           void at::native::`<unnam>`::edfused_dropout_kernel_vec<float, float, unsigned int, (int)1, (int)4, bool>                                           | 0.0112699s | 6.273 μs | GPU 0	Stream 7 |
-
 
 After fuse
 
@@ -115,22 +115,20 @@ self.f_theta = nn.Sequential(
 
 Before fuse
 
-|                                                                                              Name                                                                                              |   Start   |  Duration  |  GPU	Context  |
-| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------: | :--------: | :------------: |
-|volta_sgemm_64x64_tn|0.0250103s|274.265 μs|GPU 0	Stream 7|
-|void at::native::vectorized_elementwise_kernel<(int)4, at::native::<unnamed>::launch_clamp_scalar|0.025286s|7.199 μs|GPU 0	Stream 7|
-|void at::native::<unnamed>::fused_dropout_kernel_vec<float, float,...>|0.0252944s|10.560 μs|GPU 0	Stream 7|
-|volta_sgemm_32x128_tn|	0.0253063s|	22.463 μs|	GPU 0	Stream 7|
-
+|                                                 Name                                                 |   Start   |  Duration  |  GPU	Context  |
+| :---------------------------------------------------------------------------------------------------: | :--------: | :---------: | :------------: |
+|                                         volta_sgemm_64x64_tn                                         | 0.0250103s | 274.265 μs | GPU 0	Stream 7 |
+| void at::native::vectorized_elementwise_kernel<(int)4, at::native::`<unnamed>`::launch_clamp_scalar | 0.025286s |  7.199 μs  | GPU 0	Stream 7 |
+|              void at::native::`<unnamed>`::fused_dropout_kernel_vec<float, float,...>              | 0.0252944s | 10.560 μs | GPU 0	Stream 7 |
+|                                         volta_sgemm_32x128_tn                                         | 0.0253063s | 22.463 μs | GPU 0	Stream 7 |
 
 After fuse
 
-|                           Name                           |   Start   |  Duration  |  GPU	Context  |
-| :------------------------------------------------------: | :--------: | :--------: | :------------: |
-|volta_sgemm_64x64_tn|	1.06408s|	255.610 μs|	GPU 0	Stream 7|
-|CudaCodeGen::kernel2(CudaCodeGen::Tensor<float, (int)2>,...)|	1.06434s|	9.055 μs|	GPU 0	Stream 7|
-|volta_sgemm_32x128_tn|	1.06435s|	20.255 μs|	GPU 0	Stream 7|
-
+|                             Name                             |  Start  |  Duration  |  GPU	Context  |
+| :----------------------------------------------------------: | :------: | :---------: | :------------: |
+|                     volta_sgemm_64x64_tn                     | 1.06408s | 255.610 μs | GPU 0	Stream 7 |
+| CudaCodeGen::kernel2(CudaCodeGen::Tensor<float, (int)2>,...) | 1.06434s |  9.055 μs  | GPU 0	Stream 7 |
+|                    volta_sgemm_32x128_tn                    | 1.06435s | 20.255 μs | GPU 0	Stream 7 |
 
 ## Model IR
 
@@ -161,6 +159,44 @@ def forward(self,
   Z0 = torch.mean((out_conv).forward(A_hat, Z, ), [-1])
   return Z0
 ```
+
+GATConv
+```python
+def forward(self,
+     A_hat: __torch__.dgl.sparse.sparse_matrix.SparseMatrix,
+     Z: Tensor) -> Tensor:
+   _0 = __torch__.torch.nn.functional.leaky_relu
+   _1 = __torch__.dgl.sparse.sparse_matrix.val_like
+   dropout = self.dropout
+   Z0 = (dropout).forward(Z, )
+   W = self.W
+   _2 = (W).forward(Z0, )
+   _3 = (torch.size(Z0))[0]
+   out_size = self.out_size
+   num_heads = self.num_heads
+   Z1 = torch.view(_2, [_3, out_size, num_heads])
+   a_l = self.a_l
+   e_l = torch.sum(torch.mul(Z1, a_l), [1])
+   a_r = self.a_r
+   e_r = torch.sum(torch.mul(Z1, a_r), [1])
+   _4 = (A_hat).__row_getter()
+   _5 = (A_hat).__row_getter()
+   _6 = annotate(List[Optional[Tensor]], [(A_hat).__row_getter()])
+   _7 = torch.index(e_l, _6)
+   _8 = (A_hat).__col_getter()
+   _9 = (A_hat).__col_getter()
+   _10 = annotate(List[Optional[Tensor]], [(A_hat).__col_getter()])
+   e = torch.add(_7, torch.index(e_r, _10))
+   a = _0(e, 0.01, False, )
+   A_atten = (_1(A_hat, a, )).softmax()
+   dropout0 = self.dropout
+   a_drop = (dropout0).forward((A_atten).__val_getter(), )
+   A_atten0 = _1(A_atten, a_drop, )
+   rst = __torch__.dgl.sparse.matmul.bspmm(A_atten0, Z1, )
+   return rst
+```
+
+
 
 appnp
 
