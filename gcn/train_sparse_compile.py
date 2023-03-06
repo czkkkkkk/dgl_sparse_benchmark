@@ -36,6 +36,9 @@ class GCN(nn.Module):
     ############################################################################
     # @torch.jit.script
     def forward(self, A_norm: dglsp.SparseMatrix, X: torch.Tensor):
+        # A_norm = A_norm + A_norm
+        # X = A_norm @ self.W1(X)
+        
         X = dglsp.spmm(A_norm, self.W1(X))
         X = F.relu(X)
         X = dglsp.spmm(A_norm, self.W2(X))
@@ -83,7 +86,7 @@ if __name__ == "__main__":
     D_hat = dglsp.diag(A_hat.sum(1)) ** -0.5
     A_norm = D_hat @ A_hat
     A_hat = None
-    A_norm = A_norm @ D_hat
+    # A_norm = A_norm @ D_hat
     D_hat = None
     profiler.range_pop()
     # Create model.
