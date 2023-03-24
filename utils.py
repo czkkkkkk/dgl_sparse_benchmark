@@ -90,6 +90,31 @@ def benchmark(epochs, warmup, model, label, train_mask, *args):
     loss_fcn = nn.CrossEntropyLoss()
 
     for epoch in range(epochs + warmup):
+        if epoch == warmup:
+            torch.cuda.synchronize(0)
+            start = time.time()
+        model.train()
+
+        # Forward.
+        logits = model(*args)
+
+        # Compute loss with nodes in the training set.
+        loss = loss_fcn(logits[train_mask], label[train_mask])
+
+        # Backward.
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+    torch.cuda.synchronize(0)
+    end = time.time()
+    print(f'Using time: {end - start}, Average time an epoch {(end - start) / epochs}')
+    print_gpu_memory('Memory usage during training:')
+
+def benchmark_profile(epochs, warmup, model, label, train_mask, *args):
+    optimizer = Adam(model.parameters(), lr=1e-2, weight_decay=5e-4)
+    loss_fcn = nn.CrossEntropyLoss()
+
+    for epoch in range(epochs + warmup):
         profiler.start()
         if epoch == warmup:
             torch.cuda.synchronize(0)
@@ -114,7 +139,7 @@ def benchmark(epochs, warmup, model, label, train_mask, *args):
         optimizer.step()
         
         profiler.stop()
-        print(f"epoch {epoch}, loss: {loss}")
+        # print(f"epoch {epoch}, loss: {loss}")
     torch.cuda.synchronize(0)
     end = time.time()
     print(f'Using time: {end - start}, Average time an epoch {(end - start) / epochs}')

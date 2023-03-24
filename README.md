@@ -2,6 +2,40 @@
 
 **Github repository: [https://github.com/czkkkkkk/dgl_sparse_benchmark](https://github.com/czkkkkkk/dgl_sparse_benchmark)**
 
+## Run the code
+
+```python
+# clone the DGL code
+git clone git@github.com:paoxiaode/dgl.git
+git checkout -b compile origin/compile
+
+export DGL_HOME=/home/ubuntu/dgl
+export DGL_LIBRARY_PATH=$DGL_HOME/build
+export PYTHONPATH=$PYTHONPATH:$DGL_HOME/python
+
+# compile the dgl code
+cd dgl
+mkdir build
+cd build
+cmake -DUSE_CUDA=ON ..
+make -j4
+
+# run the code
+
+## run the DGL sparse model
+python gcn/train_sparse_compile.py --dataset ${dataset}
+
+## run the Scripted DGL sparse model
+python gcn/train_sparse_compile.py --dataset ${dataset} --compile True
+
+## bash(epoch time)
+source run.sh
+
+## bash(nsys)
+source run_nsys.sh
+
+```
+
 ## Setup
 
 Datasets
@@ -161,6 +195,7 @@ def forward(self,
 ```
 
 GATConv
+
 ```python
 def forward(self,
      A_hat: __torch__.dgl.sparse.sparse_matrix.SparseMatrix,
@@ -195,8 +230,6 @@ def forward(self,
    rst = __torch__.dgl.sparse.matmul.bspmm(A_atten0, Z1, )
    return rst
 ```
-
-
 
 appnp
 

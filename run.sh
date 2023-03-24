@@ -1,13 +1,11 @@
-
-# models=("gcn" "gat" "appnp" "sign")
-# models=("appnp" "sign")
-models=("gcn")
-
+models=("gat")
+dataset=cora
 for model in ${models[@]};
 do
     echo run $model
-    python $model/train_sparse_compile.py --dataset cora > log/${model}_cora.log 2>&1
-    python $model/train_sparse_compile.py --dataset ogbn-products > log/${model}_products.log 2>&1
-    python $model/train_sparse_compile.py --dataset ogbn-arxiv > log/${model}_arxiv.log 2>&1
-    
+    name=${model}_${dataset}_$(date +%H_%M_%S)
+    # original model
+    python $model/train_sparse_compile.py --dataset ${dataset} > log/epoch_time/${name}.log 2>&1 
+    # compiled model
+    python $model/train_sparse_compile.py --dataset ${dataset} --compile True > log/epoch_time/${name}_compile.log 2>&1 
 done
