@@ -169,6 +169,34 @@ def benchmark_fw_bw(
 
     print(tabulate(ts, headers=header, tablefmt="psql"))
 
+def benchmark_tensorboard(
+    epochs: int,
+    models: List[callable],
+    model_names: Optional[List[str]],
+    args: Tuple[Any],
+):
+    model_name = models[0].__class__.__name__
+    for model, name in zip(models, model_names):
+        for _ in range(epochs):
+            with torch.profiler.profile(
+                schedule=torch.profiler.schedule(wait=5, warmup=1, active=1, repeat=1),
+                on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                    f"./log/profile/{model_name}_{name}"
+                ),
+                record_shapes=True,
+                profile_memory=True,
+                with_stack=True,
+            ) as prof:
+                for _ in range(10):
+                    torch.cuda.synchronize()
+
+                    out = model(*args)
+
+                    torch.cuda.synchronize()
+
+                    out_grad = torch.randn_like(out)
+                    out.backward(out_grad)
+                    prof.step()
 
 def benchmark_profile(epochs, warmup, model, label, train_mask, *args):
     import ScheduleProfiler
