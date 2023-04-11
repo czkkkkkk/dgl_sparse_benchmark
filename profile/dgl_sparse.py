@@ -4,7 +4,7 @@ import dgl.sparse as dglsp
 import torch
 
 from models import GAT, GCN
-from utils import benchmark_fw_bw
+from utils import benchmark_fw_bw, benchmark_tensorboard
 
 if __name__ == "__main__":
     import argparse
@@ -22,11 +22,11 @@ if __name__ == "__main__":
     I = dglsp.identity(A.shape, device=dev)
     A = A + I
 
-    for Model in [GCN, GAT]:
+    for Model in [GCN]:
         print(f"Model: {Model.__name__}")
 
         model = Model(64, 64, num_layers=3).to(dev)
-        compiled_model = torch.jit.script(model)
+        compiled_model = torch.compile(model)
 
         benchmark_fw_bw(
             epochs=50 if dev == "cpu" else 500,
@@ -35,4 +35,10 @@ if __name__ == "__main__":
             model_names=["Vanilla", "Compiled"],
             args=(A, feature),
             backward=args.backward,
+        )
+        benchmark_tensorboard(
+            models=[model, compiled_model],
+            model_names=['DGL_Vanilla', 'DGL_Compiled'],
+            args=(A, feature),
+            epochs=5
         )

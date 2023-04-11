@@ -21,13 +21,17 @@ if __name__ == '__main__':
     x = torch.randn(num_nodes, 64, device=args.device)
     edge_index = torch.randint(num_nodes, (2, num_edges), device=args.device)
     
-    for Model in [GCN]:
-    # for Model in [GCN, GraphSAGE, GIN, EdgeCNN]:
+    # for Model in [GCN]:
+    for Model in [GCN, GraphSAGE, GIN, EdgeCNN]:
         print(f'Model: {Model.__name__}')
 
         model = Model(64, 64, num_layers=3, cached= True).to(args.device)
         compiled_model = torch_geometric.compile(model)
-        origin_model = Model(64, 64, num_layers=3).to(args.device)
+        # origin_model = Model(64, 64, num_layers=3, cached= True).to(args.device)
+        # print(model.convs)
+        # print(compiled_model.convs)
+        # print(jittable_model.convs)
+        
         # benchmark_tensorboard(
         #     models=[model, compiled_model, origin_model],
         #     model_names=['Vanilla', 'Compiled', "Origin"],
@@ -37,8 +41,8 @@ if __name__ == '__main__':
         # benchmark_fw_bw(
         #     epochs=50 if args.device == "cpu" else 500,
         #     warmup=10 if args.device == "cpu" else 100,
-        #     models=[model, compiled_model],
-        #     model_names=["Vanilla", "Compiled"],
+        #     models=[model, compiled_model, origin_model],
+        #     model_names=['Vanilla', 'Compiled', "Origin"],
         #     args=(x, edge_index),
         #     backward=args.backward,
         # )
