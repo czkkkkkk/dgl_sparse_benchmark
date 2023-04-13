@@ -169,6 +169,7 @@ def benchmark_fw_bw(
 
     print(tabulate(ts, headers=header, tablefmt="psql"))
 
+
 def benchmark_tensorboard(
     epochs: int,
     models: List[callable],
@@ -197,6 +198,7 @@ def benchmark_tensorboard(
                     out_grad = torch.randn_like(out)
                     out.backward(out_grad)
                     prof.step()
+
 
 def benchmark_profile(epochs, warmup, model, label, train_mask, *args):
     import ScheduleProfiler
@@ -254,3 +256,26 @@ def get_func_name(func: Callable) -> str:
     elif hasattr(func, "__class__"):
         return func.__class__.__name__
     raise ValueError("Could not infer name for function '{func}'")
+
+
+def train(arg, model, label, train_mask, *model_args):
+    if arg.compile:
+        model = torch.jit.script(model)
+        print(model.graph)
+        print(model.code)
+    if arg.profile:
+        benchmark_profile(20, 3, model, label, train_mask, *model_args)
+    else:
+        benchmark(20, 3, model, label, train_mask, *model_args)
+
+
+def load_args(parser):
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="cora",
+        help="Dataset name ('cora', 'ogbn-products', 'ogbn-arxiv').",
+    )
+    parser.add_argument("--compile", action="store_true")
+    parser.add_argument("--profile", action="store_true")
+    return parser

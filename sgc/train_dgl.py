@@ -32,7 +32,6 @@ def evaluate(model, g, features, labels, mask):
 
 
 def main(args, g, num_classes):
-    
 
     features = g.ndata["feat"]
     labels = g.ndata["label"]
@@ -40,7 +39,7 @@ def main(args, g, num_classes):
     val_mask = g.ndata["val_mask"]
     test_mask = g.ndata["test_mask"]
     in_feats = features.shape[1]
-    n_classes = num_classes 
+    n_classes = num_classes
     n_edges = g.number_of_edges()
 
     # add self loop
@@ -53,9 +52,7 @@ def main(args, g, num_classes):
     loss_fcn = torch.nn.CrossEntropyLoss()
 
     # use optimizer
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=2e-1, weight_decay=5e-6
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=2e-1, weight_decay=5e-6)
 
     # initialize graph
     dur = []

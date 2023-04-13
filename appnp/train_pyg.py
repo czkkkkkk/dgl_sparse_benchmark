@@ -13,12 +13,13 @@ import torch_sparse
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default='cora')
+parser.add_argument("--dataset", type=str, default="cora")
 args = parser.parse_args()
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 data, dataset = load_pyg_dataset(args.dataset, device)
+
 
 class APPNP(nn.Module):
     def __init__(
@@ -54,7 +55,7 @@ class APPNP(nn.Module):
 
 
 in_size = data.x.shape[1]
-out_size = dataset.num_classes 
+out_size = dataset.num_classes
 model = APPNP(in_size, out_size).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=5e-4)
 

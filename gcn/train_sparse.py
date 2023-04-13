@@ -12,6 +12,7 @@ from utils import load_dataset, benchmark
 import argparse
 import time
 
+
 class GCN(nn.Module):
     def __init__(self, in_size, out_size, hidden_size=16):
         super().__init__()
@@ -43,10 +44,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     g, num_classes = load_dataset(args.dataset, dev)
-    label = g.ndata['label']
-    train_mask = g.ndata['train_mask']
-    val_mask = g.ndata['val_mask']
-    test_mask = g.ndata['test_mask']
+    label = g.ndata["label"]
+    train_mask = g.ndata["train_mask"]
+    val_mask = g.ndata["val_mask"]
+    test_mask = g.ndata["test_mask"]
 
     X = g.ndata["feat"]
 

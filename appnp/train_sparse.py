@@ -55,8 +55,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     g, num_classes = load_dataset(args.dataset, dev)
-    label = g.ndata['label']
-    train_mask = g.ndata['train_mask']
+    label = g.ndata["label"]
+    train_mask = g.ndata["train_mask"]
     X = g.ndata["feat"]
 
     # Create the sparse adjacency matrix A.
@@ -71,7 +71,6 @@ if __name__ == "__main__":
     A = A + I
     D_hat = dglsp.diag(A.sum(dim=1)) ** -0.5
     A = D_hat @ A @ D_hat
-    
 
     # Create APPNP model.
     in_size = X.shape[1]

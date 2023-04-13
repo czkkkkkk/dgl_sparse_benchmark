@@ -12,11 +12,11 @@ import torch.nn.functional as F
 class GCN(nn.Module):
     def __init__(self, in_size, out_size, hidden_size=16, num_layers=2):
         super().__init__()
-        
+
         self.num_layers = num_layers
 
         # Two-layer GCN.
-        self.weights= nn.ModuleList()
+        self.weights = nn.ModuleList()
         self.weights.append(nn.Linear(in_size, hidden_size))
         for _ in range(self.num_layers - 2):
             self.weights.append(nn.Linear(hidden_size, hidden_size))
@@ -27,8 +27,8 @@ class GCN(nn.Module):
     # forward process.
     ############################################################################
     def forward(self, A_norm: dglsp.SparseMatrix, X: torch.Tensor):
-        for _, weight in enumerate(self.weights): 
-            X = dglsp.spmm(A_norm,  weight(X))
+        for _, weight in enumerate(self.weights):
+            X = dglsp.spmm(A_norm, weight(X))
             X = F.relu(X)
         X = dglsp.spmm(A_norm, self.out_conv(X))
         return X

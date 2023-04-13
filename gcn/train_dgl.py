@@ -11,34 +11,30 @@ from utils import load_dataset, benchmark
 
 # pylint: disable=W0235
 class GraphConv(nn.Module):
-    def __init__(self,
-                 in_feats,
-                 out_feats):
+    def __init__(self, in_feats, out_feats):
         super(GraphConv, self).__init__()
         self.W = nn.Linear(in_feats, out_feats)
 
-    
     def forward(self, graph, feat):
         with graph.local_scope():
-            aggregate_fn = fn.u_mul_e('h', 'e', 'm')
+            aggregate_fn = fn.u_mul_e("h", "e", "m")
 
             feat = self.W(feat)
-            graph.srcdata['h'] = feat
-            graph.update_all(aggregate_fn, fn.sum(msg='m', out='h'))
-            rst = graph.dstdata['h']
+            graph.srcdata["h"] = feat
+            graph.update_all(aggregate_fn, fn.sum(msg="m", out="h"))
+            rst = graph.dstdata["h"]
 
             rst = torch.relu(rst)
 
             return rst
+
 
 class GCN(nn.Module):
     def __init__(self, in_size, hid_size, out_size):
         super().__init__()
         self.layers = nn.ModuleList()
         # two-layer GCN
-        self.layers.append(
-            GraphConv(in_size, hid_size)
-        )
+        self.layers.append(GraphConv(in_size, hid_size))
         self.layers.append(GraphConv(hid_size, out_size))
 
     def forward(self, g, features):
@@ -49,11 +45,12 @@ class GCN(nn.Module):
 
 
 def preprocess(g):
-    g.edata['e'] = torch.ones(g.number_of_edges(), device=g.device, dtype=torch.float)
-    g.ndata['i'] = g.in_degrees() ** -0.5
-    g.apply_edges(fn.u_mul_e('i', 'e', out='e'))
-    g.apply_edges(fn.v_mul_e('i', 'e', out='e'))
+    g.edata["e"] = torch.ones(g.number_of_edges(), device=g.device, dtype=torch.float)
+    g.ndata["i"] = g.in_degrees() ** -0.5
+    g.apply_edges(fn.u_mul_e("i", "e", out="e"))
+    g.apply_edges(fn.v_mul_e("i", "e", out="e"))
     return g
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -76,10 +73,7 @@ if __name__ == "__main__":
 
     # create GCN model
     in_size = features.shape[1]
-    out_size = num_classes 
+    out_size = num_classes
     model = GCN(in_size, 16, out_size).to(device)
 
-
-    benchmark(20, 3, model, labels, g.ndata['train_mask'], g, features)
-
-
+    benchmark(20, 3, model, labels, g.ndata["train_mask"], g, features)

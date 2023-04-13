@@ -11,12 +11,13 @@ from torch_geometric.utils import softmax
 import torch_sparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default='cora')
+parser.add_argument("--dataset", type=str, default="cora")
 args = parser.parse_args()
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 data, dataset = load_pyg_dataset(args.dataset, device)
+
 
 class GATConv(nn.Module):
     def __init__(self, in_size, out_size, num_heads, dropout):
@@ -55,10 +56,9 @@ class GATConv(nn.Module):
         rst = rst.permute((1, 2, 0))
         return rst
 
+
 class GAT(nn.Module):
-    def __init__(
-        self, in_size, out_size, hidden_size=8, num_heads=8, dropout=0.6
-    ):
+    def __init__(self, in_size, out_size, hidden_size=8, num_heads=8, dropout=0.6):
         super().__init__()
 
         self.in_conv = GATConv(
@@ -84,6 +84,7 @@ edge_index = data.edge_index
 # Sort columns to apply softmax
 _, sorted_indices = torch.sort(edge_index[1])
 edge_index = edge_index[:, sorted_indices]
+
 
 def train():
     model.train()

@@ -7,9 +7,7 @@ import dgl.sparse as dglsp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dgl.data import CoraGraphDataset
-from torch.optim import Adam
-from utils import load_dataset, benchmark
+from utils import load_dataset, train, load_args
 import argparse
 
 
@@ -54,9 +52,7 @@ class GATConv(nn.Module):
 
 
 class GAT(nn.Module):
-    def __init__(
-        self, in_size, out_size, hidden_size=8, num_heads=8, dropout=0.6
-    ):
+    def __init__(self, in_size, out_size, hidden_size=8, num_heads=8, dropout=0.6):
         super().__init__()
 
         self.in_conv = GATConv(
@@ -87,17 +83,7 @@ def evaluate(g, pred):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="cora",
-        help="Dataset name ('cora', 'ogbn-products', 'ogbn-arxiv').",
-    )
-    parser.add_argument(
-        "--compile",
-        type=bool,
-        default=False,
-    )
+    parser = load_args(parser)
     args = parser.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     g, num_classes = load_dataset(args.dataset, dev)
@@ -107,8 +93,8 @@ if __name__ == "__main__":
     N = g.num_nodes()
     A = dglsp.from_coo(dst, src, shape=(N, N))
     src = dst = None
-    label = g.ndata['label']
-    train_mask = g.ndata['train_mask']
+    label = g.ndata["label"]
+    train_mask = g.ndata["train_mask"]
     X = g.ndata["feat"]
     g = None
 
@@ -120,11 +106,4 @@ if __name__ == "__main__":
     in_size = X.shape[1]
     out_size = num_classes
     model = GAT(in_size, out_size).to(dev)
-    if not args.compile:
-        benchmark(20, 3, model, label, train_mask, A, X)
-    else:
-        model_script = torch.jit.script(model)
-        print(model_script.graph)
-        print(model_script.code)
-        benchmark(20, 3, model_script, label, train_mask, A, X)
-
+    train(args, model, label, train_mask, A, X)

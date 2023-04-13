@@ -7,9 +7,7 @@ import dgl.sparse as dglsp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dgl.data import CoraGraphDataset
-from torch.optim import Adam
-from utils import load_dataset, benchmark
+from utils import load_dataset, train, load_args
 import argparse
 
 
@@ -46,17 +44,7 @@ class APPNP(nn.Module):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="cora",
-        help="Dataset name ('cora', 'ogbn-products', 'ogbn-arxiv').",
-    )
-    parser.add_argument(
-        "--compile",
-        type=bool,
-        default=False,
-    )
+    parser = load_args(parser)
     args = parser.parse_args()
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     g, num_classes = load_dataset(args.dataset, dev)
@@ -82,10 +70,4 @@ if __name__ == "__main__":
     model = APPNP(in_size, out_size).to(dev)
 
     # Kick off training.
-    if not args.compile:
-        benchmark(20, 3, model, label, train_mask, A, X)
-    else:
-        model_script = torch.jit.script(model)
-        print(model_script.graph)
-        print(model_script.code)
-        benchmark(20, 3, model_script, label, train_mask, A, X)
+    train(args, model, label, train_mask, A, X)

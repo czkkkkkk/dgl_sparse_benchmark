@@ -29,4 +29,3 @@ def normalize():
 
 
 benchmark_fn(20, 3, normalize)
-

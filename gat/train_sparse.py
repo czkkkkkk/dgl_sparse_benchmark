@@ -54,9 +54,7 @@ class GATConv(nn.Module):
 
 
 class GAT(nn.Module):
-    def __init__(
-        self, in_size, out_size, hidden_size=8, num_heads=8, dropout=0.6
-    ):
+    def __init__(self, in_size, out_size, hidden_size=8, num_heads=8, dropout=0.6):
         super().__init__()
 
         self.in_conv = GATConv(
@@ -102,8 +100,8 @@ if __name__ == "__main__":
     N = g.num_nodes()
     A = dglsp.from_coo(dst, src, shape=(N, N))
     src = dst = None
-    label = g.ndata['label']
-    train_mask = g.ndata['train_mask']
+    label = g.ndata["label"]
+    train_mask = g.ndata["train_mask"]
     X = g.ndata["feat"]
     g = None
 

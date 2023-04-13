@@ -21,6 +21,7 @@ g = None
 A = dglsp.from_coo(dst, src, shape=(N, N))
 src = dst = None
 
+
 def normalize():
     D = dglsp.diag(A.sum(1)) ** -0.5
     A_p = dglsp.diag_sparse_mm(D, A)
@@ -29,5 +30,3 @@ def normalize():
 
 
 benchmark_fn(20, 3, normalize)
-
-

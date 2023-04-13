@@ -10,10 +10,10 @@ import torch.nn as nn
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default='cora')
+parser.add_argument("--dataset", type=str, default="cora")
 args = parser.parse_args()
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 data, dataset = load_pyg_dataset(args.dataset, device)
 
@@ -35,6 +35,7 @@ class GCN(nn.Module):
         X = F.relu(X)
         return X
 
+
 model = GCN(dataset.num_features, dataset.num_classes)
 model, data = model.to(device), data.to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=5e-4)
@@ -42,6 +43,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-2, weight_decay=5e-4)
 
 # Use fake normalized non-zero values
 value = torch.ones_like(data.edge_index[0]).float()
+
 
 def train():
     model.train()

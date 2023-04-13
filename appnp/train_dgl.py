@@ -70,11 +70,12 @@ class APPNP(nn.Module):
 
 
 def preprocess(g):
-    g.edata['e'] = torch.ones(g.number_of_edges(), device=g.device, dtype=torch.float)
-    g.ndata['i'] = g.in_degrees() ** -0.5
-    g.apply_edges(fn.u_mul_e('i', 'e', out='e'))
-    g.apply_edges(fn.v_mul_e('i', 'e', out='e'))
+    g.edata["e"] = torch.ones(g.number_of_edges(), device=g.device, dtype=torch.float)
+    g.ndata["i"] = g.in_degrees() ** -0.5
+    g.apply_edges(fn.u_mul_e("i", "e", out="e"))
+    g.apply_edges(fn.v_mul_e("i", "e", out="e"))
     return g
+
 
 def main(args, g, num_classes):
 
@@ -103,7 +104,8 @@ def main(args, g, num_classes):
     )
 
     model.cuda()
-    benchmark(20, 3, model, labels, train_mask, features, g.edata['e'])
+    benchmark(20, 3, model, labels, train_mask, features, g.edata["e"])
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

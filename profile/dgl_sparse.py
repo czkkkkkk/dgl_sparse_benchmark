@@ -38,7 +38,7 @@ if __name__ == "__main__":
         )
         benchmark_tensorboard(
             models=[model, compiled_model],
-            model_names=['DGL_Vanilla', 'DGL_Compiled'],
+            model_names=["DGL_Vanilla", "DGL_Compiled"],
             args=(A, feature),
-            epochs=5
+            epochs=5,
         )

@@ -99,8 +99,6 @@ def preprocess(g, features):
         return res
 
 
-
-
 def evaluate(epoch, args, model, feats, labels, train, val, test):
     with torch.no_grad():
         batch_size = args.eval_batch_size
