@@ -66,12 +66,19 @@ class GAT(nn.Module):
         self.out_conv = GATConv(
             hidden_size * num_heads, out_size, num_heads=1, dropout=dropout
         )
+        self.stream1 = torch.cuda.Stream()
+        
 
     def forward(self, A_hat, X):
         # Flatten the head and feature dimension.
-        Z = F.elu(self.in_conv(A_hat, X)).flatten(1)
-        # Average over the head dimension.
-        Z = self.out_conv(A_hat, Z).mean(-1)
+        current_stream = torch.cuda.current_stream()
+        self.stream1.wait_stream(current_stream)
+        with torch.cuda.stream(self.stream1):
+            Z = F.elu(self.in_conv(A_hat, X)).flatten(1)
+            # Average over the head dimension.
+            Z = self.out_conv(A_hat, Z).mean(-1)
+        current_stream.wait_stream(self.stream1)
+        
         return Z
 
 
@@ -93,6 +100,7 @@ def train(model, g, A_hat, X):
     loss_fcn =torch.nn.CrossEntropyLoss()
 
     for epoch in range(50):
+        print("epoch: ", epoch)
         # Forward.
         model.train()
         logits = model(A_hat, X)
@@ -149,10 +157,10 @@ if __name__ == "__main__":
     print("Calling graph() pure eager\n")
     stream = torch.cuda.Stream()
     A_hat.requires_grad = False
+    
     model = graph(
         model,
-        batch_graph=A_hat,
-        sample_args=(X.clone(),),
+        sample_args=(A_hat,X.clone(),),
         graph_stream=stream,
         warmup_iters=0,
         warmup_only=True,
@@ -160,13 +168,12 @@ if __name__ == "__main__":
     )
     model = graph(
         model,
-        batch_graph=A_hat,
-        sample_args=(X.clone(),),
+        sample_args=(A_hat,X.clone(),),
         graph_stream=stream,
         warmup_only=False,
         overwrite_fn="graph_forward",
     )
-    pdb.set_trace()
+    # pdb.set_trace()
 
     class GraphedWrapper(torch.nn.Module):
         def __init__(self, model_segment):

@@ -16,12 +16,6 @@
 # python -m torch.distributed.launch --nproc_per_node=2 function.py [--graph-after-ddp] [--graph-before-ddp]
 
 import torch
-# TORCH_MAJOR = int(torch.__version__.split('.')[0])
-# TORCH_MINOR = int(torch.__version__.split('.')[1])
-# if TORCH_MAJOR == 1 and TORCH_MINOR < 8:
-#     from torch._six import container_abcs
-# else:
-#     import collections.abc as container_abcs
 import types
 from itertools import chain
 import argparse
@@ -43,7 +37,6 @@ import os
 # explicit return values.
 
 def graph(func_or_module,
-          batch_graph,
           sample_args,
           graph_stream=None,
           warmup_iters=2,
@@ -84,7 +77,7 @@ def graph(func_or_module,
             # Warmup iters should warm up the same memory pool capture will use.  If they don't,
             # and we use the capture pool for the first time during capture, we'll almost
             # certainly capture some cudaMallocs.
-            outputs = func_or_module(batch_graph,*sample_args)
+            outputs  = func_or_module(*sample_args)
 
             outputs_was_tensor = isinstance(outputs, torch.Tensor)
             outputs = (outputs,) if outputs_was_tensor else outputs
@@ -114,7 +107,7 @@ def graph(func_or_module,
             fwd_graph.capture_begin(pool=use_pool_id)
         else:
             fwd_graph.capture_begin()
-        outputs  = func_or_module(batch_graph,*sample_args)
+        outputs  = func_or_module(*sample_args)
         fwd_graph.capture_end()
 
         outputs_was_tensor = isinstance(outputs, torch.Tensor)
@@ -140,7 +133,7 @@ def graph(func_or_module,
 
         # Constructs a list suitable for returning from Graphed.backward:
         # Inserts Nones in gradient slots for inputs that don't expect a grad.
-        buffer_grad_inputs = [None]
+        buffer_grad_inputs = []
         grad_idx = 0
         for arg in functional_args:
             if arg.requires_grad:
@@ -149,32 +142,25 @@ def graph(func_or_module,
             else:
                 buffer_grad_inputs.append(None)
         buffer_grad_inputs = tuple(buffer_grad_inputs)
-        # print(functional_args)
 
     ambient_stream.wait_stream(stream)
 
     class Graphed(torch.autograd.Function):
         @staticmethod
-        def forward(ctx, batch_graph,*inputs):
-            # with torch.no_grad():
-            #     for i, arg in zip(buffer_inputs, inputs):
-            #         if i.data_ptr() != arg.data_ptr():
-            #             print("copy", i.shape)
-            #             i.copy_(arg)
+        def forward(ctx, *inputs):
+            with torch.no_grad():
+                for i, arg in zip(buffer_inputs, inputs):
+                    if torch.is_tensor(i) and i.data_ptr() != arg.data_ptr():
+                        i.copy_(arg)
             fwd_graph.replay()
             return buffer_outputs
         @staticmethod
         def backward(ctx, *grads):
-            # print(len(grads))
-            print(grads[0].shape)
-            print(buffer_incoming_grads[0].shape)
-            
             with torch.no_grad():
                 for g, grad in zip(buffer_incoming_grads, grads):
                     if g is not None:
                         g.copy_(grad)
             bwd_graph.replay()
-            # print(buffer_grad_inputs)
             return tuple(b.detach() if b is not None else b for b in buffer_grad_inputs)
 
     if was_module:
