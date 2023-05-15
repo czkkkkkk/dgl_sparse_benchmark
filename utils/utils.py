@@ -10,6 +10,8 @@ from ogb.nodeproppred import DglNodePropPredDataset
 from pynvml import *
 from torch.optim import Adam
 
+import pdb
+
 nvmlInit()
 
 
@@ -220,6 +222,7 @@ def benchmark_profile(epochs, warmup, model, label, train_mask, *args):
 
         # Compute loss with nodes in the training set.
         profiler.range_push("loss")
+        pdb.set_trace()
         loss = loss_fcn(logits[train_mask], label[train_mask])
         profiler.range_pop()
 
@@ -259,6 +262,7 @@ def get_func_name(func: Callable) -> str:
 
 
 def train(arg, model, label, train_mask, *model_args):
+    print(model)
     if arg.compile:
         model = torch.jit.script(model)
         print(model.graph)
